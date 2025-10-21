@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CASDC - Complete Active Directory Server Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">CASDC</h1>
+            <nav class="nav">
+                <a href="/admin">Admin</a>
+                <a href="/users">Users</a>
+                <a href="/support">Support</a>
+                <a href="/logout">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="hero">
+                <h1>Complete Active Directory Server Controller</h1>
+                <p>Enterprise-grade domain controller functionality with modern web-based management</p>
+            </div>
+
+            <div class="dashboard">
+                <div class="card">
+                    <h2>System Status</h2>
+                    <div class="status healthy">All services running</div>
+                </div>
+
+                <div class="card">
+                    <h2>Users</h2>
+                    <div class="metric">{{ .UserCount }} active</div>
+                </div>
+
+                <div class="card">
+                    <h2>Security</h2>
+                    <div class="metric">{{ .ThreatCount }} indicators</div>
+                </div>
+
+                <div class="card">
+                    <h2>Mail</h2>
+                    <div class="metric">{{ .MailCount }} messages</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 CASDC - MIT Licensed</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

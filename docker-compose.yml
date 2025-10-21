@@ -1,0 +1,244 @@
+# Docker Compose configuration for CASDC development environment
+# This provides a complete development setup with all dependencies
+
+version: '3.8'
+
+services:
+  # Main CASDC service in development mode with hot reload
+  casdc:
+    build:
+      context: .
+      target: development
+    container_name: casdc-dev
+    hostname: casdc.local
+    restart: unless-stopped
+    environment:
+      # Core Configuration
+      CASDC_DOMAIN: example.local
+      CASDC_ORGANIZATION: Development Organization
+      CASDC_ADMIN_EMAIL: admin@example.local
+      CASDC_TIMEZONE: America/New_York
+
+      # Database Configuration (using PostgreSQL for development)
+      CASDC_DB_TYPE: postgres
+      CASDC_DB_HOST: postgres
+      CASDC_DB_PORT: 5432
+      CASDC_DB_NAME: casdc
+      CASDC_DB_USER: casdc
+      CASDC_DB_PASSWORD: development_password
+      CASDC_DB_SSL_MODE: disable
+
+      # Cache Configuration (using Redis for development)
+      CASDC_CACHE_TYPE: redis
+      CASDC_CACHE_HOST: redis
+      CASDC_CACHE_PORT: 6379
+      CASDC_CACHE_PASSWORD: cache_password
+      CASDC_CACHE_DB: 0
+
+      # Certificate Management
+      CASDC_CERT_PROVIDER: internal
+      CASDC_CERT_EMAIL: certificates@example.local
+
+      # Security Configuration
+      CASDC_SECURITY_LEVEL: standard
+      CASDC_MFA_REQUIRED: false
+      CASDC_SESSION_TIMEOUT: 28800
+      CASDC_PASSWORD_COMPLEXITY: medium
+
+      # Network Configuration
+      CASDC_LISTEN_IP: 0.0.0.0
+      CASDC_HTTP_PORT: 80
+      CASDC_HTTPS_PORT: 443
+      CASDC_PROXY_MODE: false
+
+      # Mail Configuration
+      CASDC_MAIL_HOSTNAME: mail.example.local
+      CASDC_MAIL_DOMAIN: example.local
+      CASDC_MAIL_QUOTA: 5368709120
+
+      # Development Settings
+      CASDC_DEBUG: true
+      CASDC_LOG_LEVEL: debug
+      CASDC_DEVELOPMENT_MODE: true
+      CASDC_API_RATE_LIMIT: 0
+
+    ports:
+      # Web Interface
+      - "80:80"
+      - "443:443"
+      # Mail Services
+      - "25:25"     # SMTP
+      - "465:465"   # SMTPS
+      - "587:587"   # Submission
+      - "110:110"   # POP3
+      - "995:995"   # POP3S
+      - "143:143"   # IMAP
+      - "993:993"   # IMAPS
+      # DNS
+      - "53:53/tcp"
+      - "53:53/udp"
+      # DHCP
+      - "67:67/udp"
+      # SMB/NetBIOS
+      - "137:137/udp"
+      - "138:138/udp"
+      - "139:139"
+      - "445:445"
+      # VPN
+      - "1194:1194/udp"  # OpenVPN
+      - "51820:51820/udp" # WireGuard
+      - "500:500/udp"     # IPSec
+      - "4500:4500/udp"   # IPSec NAT
+      # Development Ports
+      - "3000:3000"  # Development web server
+      - "8080:8080"  # API documentation
+      - "9090:9090"  # Metrics/Monitoring
+
+    volumes:
+      # Source code for hot reload
+      - ./:/app
+      # Persistent data
+      - casdc_data:/var/lib/casdc
+      - casdc_config:/etc/casdc
+      - casdc_logs:/var/log/casdc
+      - casdc_backups:/mnt/backups/casdc
+      # Web content
+      - casdc_www:/var/www
+      # Temporary files in memory
+      - type: tmpfs
+        target: /tmp/casdc
+        tmpfs:
+          size: 100M
+
+    depends_on:
+      - postgres
+      - redis
+
+    networks:
+      - casdc_network
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+      - NET_RAW
+      - SYS_CHROOT
+
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+  # PostgreSQL database for development
+  postgres:
+    image: postgres:16-alpine
+    container_name: casdc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: casdc
+      POSTGRES_USER: casdc
+      POSTGRES_PASSWORD: development_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - casdc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casdc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache for development
+  redis:
+    image: redis:7-alpine
+    container_name: casdc-redis
+    restart: unless-stopped
+    command: redis-server --requirepass cache_password --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - casdc_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Adminer for database management (development only)
+  adminer:
+    image: adminer:latest
+    container_name: casdc-adminer
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha-dark
+    networks:
+      - casdc_network
+    depends_on:
+      - postgres
+
+  # MailCatcher for email testing (development only)
+  mailcatcher:
+    image: sj26/mailcatcher:latest
+    container_name: casdc-mailcatcher
+    restart: unless-stopped
+    ports:
+      - "1080:1080"  # Web interface
+      - "1025:1025"  # SMTP
+    networks:
+      - casdc_network
+
+  # Selenium for E2E testing (development only)
+  selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: casdc-selenium
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+      - "7900:7900"  # VNC server for debugging
+    environment:
+      SE_NODE_MAX_SESSIONS: 5
+      SE_NODE_SESSION_TIMEOUT: 300
+      SE_VNC_NO_PASSWORD: 1
+    networks:
+      - casdc_network
+    shm_size: 2gb
+
+networks:
+  casdc_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+volumes:
+  casdc_data:
+    driver: local
+  casdc_config:
+    driver: local
+  casdc_logs:
+    driver: local
+  casdc_backups:
+    driver: local
+  casdc_www:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

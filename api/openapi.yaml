@@ -1,0 +1,666 @@
+openapi: 3.0.3
+info:
+  title: CASDC API
+  description: |
+    Complete Active Directory Server Controller REST API
+
+    CASDC provides a comprehensive RESTful API for managing all aspects of your domain controller,
+    including users, groups, DNS, DHCP, email, certificates, file shares, VPN, Git repositories,
+    Docker registry, and more.
+
+    ## Authentication
+
+    All API endpoints (except `/api/v1/health`) require authentication using one of the following methods:
+    - **Session Cookie**: Obtained via `/login` endpoint
+    - **Bearer Token**: Use `Authorization: Bearer <token>` header
+    - **API Key**: Use `X-API-Key: <key>` header
+
+    ## Rate Limiting
+
+    API requests are rate limited to 60 requests per minute per IP address for unauthenticated requests,
+    and 300 requests per minute for authenticated requests.
+
+    ## Versioning
+
+    The API is versioned via the URL path (e.g., `/api/v1/...`). The current version is v1.
+
+  version: 1.0.0
+  contact:
+    name: CASDC Support
+    url: https://github.com/casapps/casdc
+    email: support@casdc.org
+  license:
+    name: MIT
+    url: https://github.com/casapps/casdc/blob/main/LICENSE.md
+
+servers:
+  - url: https://dc.example.com/api/v1
+    description: Production server
+  - url: http://localhost:8443/api/v1
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Authentication
+    description: User authentication and session management
+  - name: Users
+    description: User account management
+  - name: Groups
+    description: Group management
+  - name: Organizational Units
+    description: OU hierarchy management
+  - name: Group Policy
+    description: Group Policy Objects management
+  - name: DNS
+    description: DNS zone and record management
+  - name: DHCP
+    description: DHCP scope and reservation management
+  - name: Email
+    description: Email account and domain management
+  - name: Certificates
+    description: SSL/TLS certificate management
+  - name: File Shares
+    description: Network file share management
+  - name: VPN
+    description: VPN server and client management
+  - name: Git
+    description: Git repository management
+  - name: Docker Registry
+    description: Docker image registry
+  - name: Backup
+    description: Backup and restore operations
+  - name: Security
+    description: Security monitoring and threat intelligence
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns the health status of the CASDC service
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  version:
+                    type: string
+                    example: 1.0.0
+                  uptime:
+                    type: integer
+                    description: Uptime in seconds
+                    example: 3600
+                  services:
+                    type: object
+                    description: Status of individual services
+                    properties:
+                      database:
+                        type: string
+                        example: healthy
+                      dns:
+                        type: string
+                        example: healthy
+                      email:
+                        type: string
+                        example: healthy
+
+  /admin/users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Retrieve a list of all user accounts
+      operationId: listUsers
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: offset
+          in: query
+          description: Number of users to skip
+          schema:
+            type: integer
+            default: 0
+        - name: search
+          in: query
+          description: Search query for username or email
+          schema:
+            type: string
+        - name: enabled
+          in: query
+          description: Filter by enabled status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  total:
+                    type: integer
+                    description: Total number of users matching the query
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Users]
+      summary: Create user
+      description: Create a new user account
+      operationId: createUser
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/users/{userId}:
+    get:
+      tags: [Users]
+      summary: Get user
+      description: Retrieve detailed information about a specific user
+      operationId: getUser
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID or username
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Users]
+      summary: Update user
+      description: Update user account information
+      operationId: updateUser
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Users]
+      summary: Delete user
+      description: Delete a user account
+      operationId: deleteUser
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete user (dependencies exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/groups:
+    get:
+      tags: [Groups]
+      summary: List groups
+      description: Retrieve a list of all groups
+      operationId: listGroups
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+                  count:
+                    type: integer
+    post:
+      tags: [Groups]
+      summary: Create group
+      description: Create a new group
+      operationId: createGroup
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+
+  /admin/ou:
+    get:
+      tags: [Organizational Units]
+      summary: List organizational units
+      description: Retrieve organizational unit hierarchy
+      operationId: listOUs
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ous:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationalUnit'
+    post:
+      tags: [Organizational Units]
+      summary: Create organizational unit
+      operationId: createOU
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOURequest'
+      responses:
+        '201':
+          description: OU created successfully
+
+  /admin/gpo:
+    get:
+      tags: [Group Policy]
+      summary: List Group Policy Objects
+      operationId: listGPOs
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gpos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupPolicyObject'
+
+  /admin/dns:
+    get:
+      tags: [DNS]
+      summary: List DNS zones
+      operationId: listDNSZones
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zones:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DNSZone'
+
+  /admin/dhcp:
+    get:
+      tags: [DHCP]
+      summary: List DHCP scopes
+      operationId: listDHCPScopes
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scopes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DHCPScope'
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session cookie obtained via login
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for API access
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for programmatic access
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: jdoe
+        email:
+          type: string
+          format: email
+          example: jdoe@example.com
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        display_name:
+          type: string
+          example: John Doe
+        enabled:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[a-z][a-z0-9._-]*$'
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+        first_name:
+          type: string
+        last_name:
+          type: string
+        description:
+          type: string
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        enabled:
+          type: boolean
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [security, distribution]
+        scope:
+          type: string
+          enum: [domain_local, global, universal]
+        members:
+          type: array
+          items:
+            type: integer
+
+    CreateGroupRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [security, distribution]
+        scope:
+          type: string
+          enum: [domain_local, global, universal]
+
+    OrganizationalUnit:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        distinguished_name:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+        gpo_inheritance_blocked:
+          type: boolean
+        protect_from_deletion:
+          type: boolean
+
+    CreateOURequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        parent_id:
+          type: integer
+
+    GroupPolicyObject:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+        enabled:
+          type: boolean
+        version:
+          type: integer
+
+    DNSZone:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [forward, reverse]
+        enabled:
+          type: boolean
+
+    DHCPScope:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        network:
+          type: string
+        start_ip:
+          type: string
+        end_ip:
+          type: string
+        enabled:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
